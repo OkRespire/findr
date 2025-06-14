@@ -1,5 +1,6 @@
 use filesystem::collect_files;
 use fuzzy_logic::fuzzy_matcher;
+use nucleo::Matcher;
 use ui::run_app;
 
 mod filesystem;
@@ -11,14 +12,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> Result<()> {
     let files = collect_files(".", true)?;
-    for file in files {
+    for file in &files {
         println!("{:?}", file);
     }
 
-    let res = fuzzy_matcher("abc", "a_big_camel");
-    println!("{:?}", res);
+    let mut matcher = Matcher::default();
 
-    run_app();
+    let _ = run_app(&files, &mut matcher);
 
     Ok(())
 }
