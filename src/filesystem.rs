@@ -1,18 +1,26 @@
 use crate::Result;
 use anyhow::bail;
+use std::fs;
 use std::path::PathBuf;
 
-pub fn collect_files(starting_path: &str, hidden: bool) -> Result<Vec<PathBuf>> {
-    let entry = std::fs::read_dir(starting_path)?;
+pub fn collect_files(starting_path: &str, show_hidden: bool) -> Result<Vec<PathBuf>> {
+    let dir = if starting_path == "~" {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+    } else {
+        PathBuf::from(starting_path)
+    };
+
+    let entry = fs::read_dir(dir)?;
     let mut file_vec = Vec::new();
 
     for entry_res in entry {
         let entry = entry_res?;
         let path = entry.path();
-
-        if path.is_file() || (!is_hidden(&path) && hidden) {
-            file_vec.push(path);
+        if is_hidden(&path) && !show_hidden {
+            continue;
         }
+
+        file_vec.push(path);
     }
 
     Ok(file_vec)
