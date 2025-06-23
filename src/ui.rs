@@ -16,6 +16,8 @@ use ratatui::{
 use nucleo::{Matcher, Utf32Str};
 use std::{error::Error, io, path::PathBuf};
 
+use crate::highlight::highlight_contents;
+
 enum Focus {
     SearchBar,
     Results,
@@ -42,11 +44,13 @@ pub fn run_app(
             let size = f.area();
             let vertical_chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(3), // Search bar height
-                    Constraint::Min(1),    // File list fills remaining space
-                ])
+                .constraints([Constraint::Length(3), Constraint::Min(1)])
                 .split(size);
+
+            let horizontal_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .split(vertical_chunks[1]);
             draw_search_bar(
                 &query,
                 vertical_chunks[0],
@@ -55,11 +59,13 @@ pub fn run_app(
             );
             draw_content_box(
                 &filtered_files,
-                vertical_chunks[1],
+                horizontal_chunks[0],
                 f,
                 matches!(focus, Focus::Results),
                 selected_idx,
-            )
+            );
+
+            draw_file_preview(&filtered_files, selected_idx, horizontal_chunks[1], f)
         })?;
 
         if let Event::Key(key) = event::read()? {
@@ -188,4 +194,28 @@ fn draw_search_bar(query: &str, size: Rect, f: &mut Frame, focused: bool) {
         })
         .alignment(ratatui::layout::Alignment::Left);
     f.render_widget(search_box, size);
+}
+
+fn draw_file_preview(contents: &[PathBuf], s_idx: usize, area: Rect, f: &mut Frame<'_>) {
+    let preview_text = contents.get(s_idx).and_then(|path| {
+        std::fs::read_to_string(path)
+            .ok()
+            .map(|s| highlight_contents(path, &s))
+    });
+
+    let text = match preview_text {
+        Some(text) => Text::from(text),
+        _ => Text::from("Unable to preview file"),
+    };
+
+    let preview = Paragraph::new(text)
+        .block(
+            Block::default()
+                .title("Preview")
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::Gray)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false });
+
+    f.render_widget(preview, area);
 }

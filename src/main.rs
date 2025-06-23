@@ -3,6 +3,7 @@ use nucleo::Matcher;
 use ui::run_app;
 
 mod filesystem;
+mod highlight;
 mod search;
 mod ui;
 pub type Error = Box<dyn std::error::Error>;
