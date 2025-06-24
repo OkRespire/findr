@@ -1,7 +1,7 @@
 use crate::Result;
-use anyhow::bail;
 use std::fs;
 use std::path::PathBuf;
+use walkdir::WalkDir;
 
 pub fn collect_files(starting_path: &str, show_hidden: bool) -> Result<Vec<PathBuf>> {
     let dir = if starting_path == "~" {
@@ -10,12 +10,11 @@ pub fn collect_files(starting_path: &str, show_hidden: bool) -> Result<Vec<PathB
         PathBuf::from(starting_path)
     };
 
-    let entry = fs::read_dir(dir)?;
     let mut file_vec = Vec::new();
 
-    for entry_res in entry {
+    for entry_res in WalkDir::new(starting_path) {
         let entry = entry_res?;
-        let path = entry.path();
+        let path = entry.path().to_path_buf();
         if is_hidden(&path) && !show_hidden {
             continue;
         }

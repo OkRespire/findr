@@ -1,3 +1,4 @@
+use clap::Parser;
 use filesystem::collect_files;
 use nucleo::Matcher;
 use ui::run_app;
@@ -9,8 +10,17 @@ mod ui;
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Parser, Debug)]
+#[command(name = "findr", version, about = "Fuzzy finder written in Rust")]
+pub struct Args {
+    #[arg(default_value = ".")]
+    pub path: String,
+}
+
 fn main() -> Result<()> {
-    let files = collect_files("~", true)?;
+    let args = Args::parse();
+
+    let files = collect_files(&args.path, false)?;
     let mut matcher = Matcher::default();
     let _ = run_app(&files, &mut matcher);
 
