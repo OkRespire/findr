@@ -3,6 +3,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use edit;
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -18,13 +19,23 @@ use std::{error::Error, io, path::PathBuf};
 
 use crate::highlight::highlight_contents;
 
+struct AppState {
+    query: String,
+    filtered_files: Vec<PathBuf>,
+    focus: Focus,
+    selected_idx: usize,
+    scroll_offset: u16,
+    selected_path: Option<PathBuf>,
+    preview_cache: Option<Text<'static>>,
+}
+
 enum Focus {
     SearchBar,
     Results,
 }
 
 pub fn run_app(
-    contents: &Vec<PathBuf>,
+    all_files: &Vec<PathBuf>,
     matcher: &mut nucleo::Matcher,
 ) -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
@@ -32,11 +43,17 @@ pub fn run_app(
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let mut query = String::new();
-    let mut filtered_files = contents.clone();
     let mut buf = Vec::new();
-    let mut focus = Focus::SearchBar;
-    let mut selected_idx = 0;
+
+    let mut state = AppState {
+        query: String::new(),
+        filtered_files: all_files.clone(),
+        focus: Focus::SearchBar,
+        scroll_offset: 0,
+        selected_idx: 0,
+        preview_cache: None,
+        selected_path: None,
+    };
 
     loop {
         buf.clear();
@@ -52,59 +69,85 @@ pub fn run_app(
                 .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .split(vertical_chunks[1]);
             draw_search_bar(
-                &query,
+                &state.query,
                 vertical_chunks[0],
                 f,
-                matches!(focus, Focus::SearchBar),
+                matches!(state.focus, Focus::SearchBar),
             );
             draw_content_box(
-                &filtered_files,
+                &state.filtered_files,
                 horizontal_chunks[0],
                 f,
-                matches!(focus, Focus::Results),
-                selected_idx,
+                matches!(state.focus, Focus::Results),
+                state.selected_idx,
+                state.scroll_offset,
             );
 
-            draw_file_preview(&filtered_files, selected_idx, horizontal_chunks[1], f)
+            draw_file_preview(horizontal_chunks[1], f, &state.preview_cache);
+            let max_visible = horizontal_chunks[0].height.saturating_sub(2);
+
+            if state.selected_idx < state.scroll_offset as usize {
+                state.scroll_offset = state.selected_idx as u16;
+            } else if state.selected_idx as u16 >= state.scroll_offset + max_visible {
+                state.scroll_offset = state.selected_idx as u16 - max_visible + 1
+            }
         })?;
 
         if let Event::Key(key) = event::read()? {
-            match focus {
+            match state.focus {
                 Focus::SearchBar => match key.code {
-                    KeyCode::Char(c) => query.push(c),
+                    KeyCode::Char(c) => state.query.push(c),
                     KeyCode::Backspace => {
-                        query.pop();
+                        state.query.pop();
                     }
-                    KeyCode::Tab => focus = Focus::Results,
+                    KeyCode::Tab => state.focus = Focus::Results,
                     KeyCode::Esc => break,
+                    KeyCode::Enter => state.focus = Focus::Results,
                     _ => {}
                 },
                 Focus::Results => match key.code {
                     KeyCode::Up => {
-                        if selected_idx > 0 {
-                            selected_idx -= 1;
+                        if state.selected_idx > 0 {
+                            state.selected_idx -= 1;
                         } else {
-                            selected_idx = filtered_files.len() - 1
+                            state.selected_idx = state.filtered_files.len() - 1
                         }
                     }
                     KeyCode::Down => {
-                        if selected_idx + 1 < filtered_files.len() {
-                            selected_idx += 1;
+                        if state.selected_idx + 1 < state.filtered_files.len() {
+                            state.selected_idx += 1;
                         } else {
-                            selected_idx = 0
+                            state.selected_idx = 0
                         }
                     }
-                    KeyCode::BackTab => focus = Focus::SearchBar,
+                    KeyCode::Tab => state.focus = Focus::SearchBar,
                     KeyCode::Esc => break,
+                    KeyCode::Enter => {
+                        if let Some(edit_path) = state.filtered_files.get(state.selected_idx) {
+                            edit::edit_file(edit_path)?;
+                            break;
+                        }
+                    }
                     _ => {}
                 },
             }
         }
 
-        let query_lower = &query.to_lowercase();
+        let query_lower = &state.query.to_lowercase();
         let query_utf32 = Utf32Str::new(&query_lower, &mut buf);
 
-        filtered_files = update_filtered_files(query_utf32, contents, matcher);
+        state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
+
+        if let Some(path) = state.filtered_files.get(state.selected_idx) {
+            if Some(path) != state.selected_path.as_ref() {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    state.preview_cache = Some(highlight_contents(path, &content))
+                } else {
+                    state.preview_cache = Some(Text::from("Unable to read file."));
+                }
+                state.selected_path = Some(path.clone());
+            }
+        }
     }
 
     // Cleanup
@@ -146,6 +189,7 @@ fn draw_content_box(
     f: &mut Frame<'_>,
     focused: bool,
     s_idx: usize,
+    scroll_offset: u16,
 ) {
     let line_of_content: Vec<Line> = contents
         .iter()
@@ -163,16 +207,18 @@ fn draw_content_box(
         })
         .collect();
 
-    let content_box = Paragraph::new(Text::from(line_of_content)).block(
-        Block::default()
-            .title("Files")
-            .borders(Borders::ALL)
-            .style(if focused {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default()
-            }),
-    );
+    let content_box = Paragraph::new(Text::from(line_of_content))
+        .block(
+            Block::default()
+                .title("Files")
+                .borders(Borders::ALL)
+                .style(if focused {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default()
+                }),
+        )
+        .scroll((scroll_offset, 0));
     f.render_widget(content_box, size);
 }
 
@@ -196,17 +242,11 @@ fn draw_search_bar(query: &str, size: Rect, f: &mut Frame, focused: bool) {
     f.render_widget(search_box, size);
 }
 
-fn draw_file_preview(contents: &[PathBuf], s_idx: usize, area: Rect, f: &mut Frame<'_>) {
-    let preview_text = contents.get(s_idx).and_then(|path| {
-        std::fs::read_to_string(path)
-            .ok()
-            .map(|s| highlight_contents(path, &s))
-    });
-
-    let text = match preview_text {
-        Some(text) => Text::from(text),
-        _ => Text::from("Unable to preview file"),
-    };
+fn draw_file_preview(area: Rect, f: &mut Frame<'_>, preview_cache: &Option<Text<'static>>) {
+    let text = preview_cache
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| Text::from("No preview available"));
 
     let preview = Paragraph::new(text)
         .block(

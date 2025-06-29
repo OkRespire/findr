@@ -20,7 +20,7 @@ pub struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let files = collect_files(&args.path, false)?;
+    let files = collect_files(&args.path, true)?;
     let mut matcher = Matcher::default();
     let _ = run_app(&files, &mut matcher);
 
