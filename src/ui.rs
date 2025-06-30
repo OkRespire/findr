@@ -1,3 +1,4 @@
+use clap::parser::Indices;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -21,7 +22,7 @@ use crate::highlight::highlight_contents;
 
 struct AppState {
     query: String,
-    filtered_files: Vec<PathBuf>,
+    filtered_files: Vec<(PathBuf, String, Vec<u32>)>,
     focus: Focus,
     selected_idx: usize,
     scroll_offset: u16,
@@ -47,7 +48,12 @@ pub fn run_app(
 
     let mut state = AppState {
         query: String::new(),
-        filtered_files: all_files.clone(),
+        filtered_files: update_filtered_files(
+            Utf32Str::new("", &mut buf), // empty query
+            all_files,
+            matcher,
+        ),
+
         focus: Focus::SearchBar,
         scroll_offset: 2,
         selected_idx: 0,
@@ -128,7 +134,9 @@ pub fn run_app(
                     KeyCode::Tab => state.focus = Focus::SearchBar,
                     KeyCode::Esc => break,
                     KeyCode::Enter => {
-                        if let Some(edit_path) = state.filtered_files.get(state.selected_idx) {
+                        if let Some((edit_path, _, _)) =
+                            state.filtered_files.get(state.selected_idx)
+                        {
                             edit::edit_file(edit_path)?;
                             break;
                         }
@@ -143,7 +151,7 @@ pub fn run_app(
 
         state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
 
-        if let Some(path) = state.filtered_files.get(state.selected_idx) {
+        if let Some((path, _, _)) = state.filtered_files.get(state.selected_idx) {
             state.selected_path = Some(path.clone());
             if !state.preview_cache.contains_key(path) {
                 if let Ok(content) = std::fs::read_to_string(path) {
@@ -169,7 +177,7 @@ fn update_filtered_files(
     query_utf32: Utf32Str,
     contents: &[PathBuf],
     matcher: &mut Matcher,
-) -> Vec<PathBuf> {
+) -> Vec<(PathBuf, String, Vec<u32>)> {
     let mut scored_files = contents
         .iter()
         .filter_map(|path| {
@@ -177,9 +185,10 @@ fn update_filtered_files(
             let mut name_buf = Vec::new();
             let name_utf32 = Utf32Str::new(&name, &mut name_buf);
 
+            let mut match_buf = Vec::new();
             matcher
-                .fuzzy_match(name_utf32, query_utf32)
-                .map(|score| (score, path.clone()))
+                .fuzzy_indices(name_utf32, query_utf32, &mut match_buf)
+                .map(|score| (score, path.clone(), name, match_buf.clone()))
         })
         .collect::<Vec<_>>();
 
@@ -187,12 +196,12 @@ fn update_filtered_files(
     scored_files.sort_by(|a, b| b.0.cmp(&a.0));
     scored_files
         .into_iter()
-        .map(|(_, p)| p)
-        .collect::<Vec<PathBuf>>()
+        .map(|(_, path, n, i)| (path, n, i))
+        .collect::<Vec<(PathBuf, String, Vec<u32>)>>()
 }
 
 fn draw_content_box(
-    contents: &[PathBuf],
+    contents: &[(PathBuf, String, Vec<u32>)],
     size: Rect,
     f: &mut Frame<'_>,
     focused: bool,
@@ -202,15 +211,37 @@ fn draw_content_box(
     let line_of_content: Vec<Line> = contents
         .iter()
         .enumerate()
-        .map(|(i, p)| {
-            let text = p.display().to_string();
+        .map(|(i, (_p, n, v))| {
+            // p = path
+            // n = name
+            // v = index vector
+
+            let highlights: std::collections::HashSet<u32> = v.iter().cloned().collect();
+
+            let mut spans = Vec::new();
+
+            for (idx, ch) in n.chars().enumerate() {
+                let style = if highlights.contains(&(idx as u32)) {
+                    Style::default()
+                        .fg(Color::Blue)
+                        .add_modifier(ratatui::style::Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                spans.push(Span::styled(ch.to_string(), style));
+            }
+
             if i == s_idx {
-                Line::from(Span::styled(
-                    text,
-                    Style::default().bg(Color::White).fg(Color::Black),
-                ))
+                let selected_style = Style::default().bg(Color::White).fg(Color::Black);
+                let line = Line::from(spans);
+                let selected_spans = line
+                    .spans
+                    .iter()
+                    .map(|span| Span::styled(span.content.clone(), selected_style))
+                    .collect::<Vec<_>>();
+                Line::from(selected_spans)
             } else {
-                Line::from(Span::raw(text))
+                Line::from(spans)
             }
         })
         .collect();
