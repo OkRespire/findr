@@ -437,6 +437,7 @@ dependencies = [
  "lazy_static",
  "nucleo",
  "ratatui",
+ "rayon",
  "syntect",
 ]
 

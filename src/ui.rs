@@ -15,7 +15,7 @@ use ratatui::{
 };
 
 use nucleo::{Matcher, Utf32Str};
-use std::{error::Error, io, path::PathBuf};
+use std::{collections::HashMap, error::Error, io, path::PathBuf};
 
 use crate::highlight::highlight_contents;
 
@@ -26,7 +26,7 @@ struct AppState {
     selected_idx: usize,
     scroll_offset: u16,
     selected_path: Option<PathBuf>,
-    preview_cache: Option<Text<'static>>,
+    preview_cache: HashMap<PathBuf, Text<'static>>,
 }
 
 enum Focus {
@@ -49,9 +49,9 @@ pub fn run_app(
         query: String::new(),
         filtered_files: all_files.clone(),
         focus: Focus::SearchBar,
-        scroll_offset: 0,
+        scroll_offset: 2,
         selected_idx: 0,
-        preview_cache: None,
+        preview_cache: HashMap::new(),
         selected_path: None,
     };
 
@@ -83,8 +83,13 @@ pub fn run_app(
                 state.scroll_offset,
             );
 
-            draw_file_preview(horizontal_chunks[1], f, &state.preview_cache);
-            let max_visible = horizontal_chunks[0].height.saturating_sub(2);
+            draw_file_preview(
+                horizontal_chunks[1],
+                f,
+                &state.preview_cache,
+                &state.selected_path,
+            );
+            let max_visible = horizontal_chunks[0].height.saturating_sub(3);
 
             if state.selected_idx < state.scroll_offset as usize {
                 state.scroll_offset = state.selected_idx as u16;
@@ -139,13 +144,16 @@ pub fn run_app(
         state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
 
         if let Some(path) = state.filtered_files.get(state.selected_idx) {
-            if Some(path) != state.selected_path.as_ref() {
+            state.selected_path = Some(path.clone());
+            if !state.preview_cache.contains_key(path) {
                 if let Ok(content) = std::fs::read_to_string(path) {
-                    state.preview_cache = Some(highlight_contents(path, &content))
+                    let highlighted = highlight_contents(path, &content);
+                    state.preview_cache.insert(path.clone(), highlighted);
                 } else {
-                    state.preview_cache = Some(Text::from("Unable to read file."));
+                    state
+                        .preview_cache
+                        .insert(path.clone(), Text::from("No Preview available"));
                 }
-                state.selected_path = Some(path.clone());
             }
         }
     }
@@ -242,20 +250,23 @@ fn draw_search_bar(query: &str, size: Rect, f: &mut Frame, focused: bool) {
     f.render_widget(search_box, size);
 }
 
-fn draw_file_preview(area: Rect, f: &mut Frame<'_>, preview_cache: &Option<Text<'static>>) {
-    let text = preview_cache
+fn draw_file_preview(
+    area: Rect,
+    f: &mut Frame<'_>,
+    preview_cache: &HashMap<PathBuf, Text<'static>>,
+    selected_path: &Option<PathBuf>,
+) {
+    let text = selected_path
         .as_ref()
-        .cloned()
-        .unwrap_or_else(|| Text::from("No preview available"));
+        .and_then(|path| preview_cache.get(path).cloned())
+        .unwrap_or_else(|| Text::from("No Preview available"));
 
-    let preview = Paragraph::new(text)
-        .block(
-            Block::default()
-                .title("Preview")
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::Gray)),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
+    let preview = Paragraph::new(text).block(
+        Block::default()
+            .title("Preview")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::Gray)),
+    );
 
     f.render_widget(preview, area);
 }
