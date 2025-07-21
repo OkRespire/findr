@@ -1,7 +1,10 @@
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{
+        Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+        enable_raw_mode,
+    },
 };
 use edit;
 use ratatui::{
@@ -11,7 +14,7 @@ use ratatui::{
     prelude::Color,
     style::Style,
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Clear as RatatuiClear, Paragraph},
 };
 
 use nucleo::{Matcher, Utf32Str};
@@ -40,7 +43,7 @@ pub fn run_app(
 ) -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, Clear(ClearType::All))?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut buf = Vec::new();
@@ -54,7 +57,7 @@ pub fn run_app(
         ),
 
         focus: Focus::SearchBar,
-        scroll_offset: 2,
+        scroll_offset: 0,
         selected_idx: 0,
         preview_cache: HashMap::new(),
         selected_path: None,
@@ -62,7 +65,10 @@ pub fn run_app(
 
     loop {
         buf.clear();
+
         terminal.draw(|f| {
+            f.render_widget(RatatuiClear, f.area());
+
             let size = f.area();
             let vertical_chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -86,24 +92,32 @@ pub fn run_app(
                 matches!(state.focus, Focus::Results),
             );
 
+            f.render_widget(RatatuiClear, horizontal_chunks[1]);
             draw_file_preview(horizontal_chunks[1], f, &state);
-            let max_visible = horizontal_chunks[0].height.saturating_sub(3);
-
-            if state.selected_idx < state.scroll_offset as usize {
-                state.scroll_offset = state.selected_idx as u16;
-            } else if state.selected_idx as u16 >= state.scroll_offset + max_visible {
-                state.scroll_offset = state.selected_idx as u16 - max_visible + 1
-            }
         })?;
 
+        let max_visible = terminal.size()?.height.saturating_sub(6);
+
+        if state.selected_idx < state.scroll_offset as usize {
+            state.scroll_offset = state.selected_idx as u16;
+        } else if state.selected_idx as u16 >= state.scroll_offset + max_visible {
+            state.scroll_offset = state.selected_idx as u16 - max_visible + 1
+        }
+
+        let prev_query = state.query.clone();
+        let prev_selected = state.selected_idx;
         if let Event::Key(key) = event::read()? {
             match state.focus {
                 Focus::SearchBar => match key.code {
-                    KeyCode::Char(c) => state.query.push(c),
+                    KeyCode::Char(c) => {
+                        state.query.push(c);
+                    }
                     KeyCode::Backspace => {
                         state.query.pop();
                     }
-                    KeyCode::Tab => state.focus = Focus::Results,
+                    KeyCode::Tab => {
+                        state.focus = Focus::Results;
+                    }
                     KeyCode::Esc => break,
                     KeyCode::Enter => state.focus = Focus::Results,
                     _ => {}
@@ -143,17 +157,35 @@ pub fn run_app(
 
         state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
 
+        // Update filtered files if query changed
+        if state.query != prev_query {
+            let query_lower = &state.query.to_lowercase();
+            let query_utf32 = Utf32Str::new(&query_lower, &mut buf);
+            state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
+
+            // Reset selection if query changed
+            state.selected_idx = 0;
+            state.scroll_offset = 0;
+        }
+
+        // Update preview if selection changed or query changed
+        if state.selected_idx != prev_selected || state.query != prev_query {
+            update_preview(&mut state);
+        }
+
         if let Some((path, _, _)) = state.filtered_files.get(state.selected_idx) {
             state.selected_path = Some(path.clone());
-            if !state.preview_cache.contains_key(path) {
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    let highlighted = highlight_contents(path, &content);
-                    state.preview_cache.insert(path.clone(), highlighted);
-                } else {
-                    state
-                        .preview_cache
-                        .insert(path.clone(), Text::from("No Preview available"));
-                }
+
+            state
+                .preview_cache
+                .insert(path.clone(), Text::from("Loading preview..."));
+            if let Ok(content) = std::fs::read_to_string(path) {
+                let highlighted = highlight_contents(path, &content);
+                state.preview_cache.insert(path.clone(), highlighted);
+            } else {
+                state
+                    .preview_cache
+                    .insert(path.clone(), Text::from("No Preview available"));
             }
         }
     }
@@ -164,7 +196,7 @@ pub fn run_app(
     Ok(())
 }
 
-fn update_preview(app_state: &mut AppState) -> HashMap<PathBuf, Text<'static>> {
+fn update_preview(app_state: &mut AppState) {
     if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
         app_state.selected_path = Some(path.clone());
         if !app_state.preview_cache.contains_key(path) {
@@ -289,7 +321,7 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
         .selected_path
         .as_ref()
         .and_then(|path| app_state.preview_cache.get(path).cloned())
-        .unwrap_or_else(|| Text::from("No Preview available"));
+        .unwrap_or_else(|| Text::from(""));
     let path_title = if let Some(path_name) = &app_state.selected_path {
         path_name.to_string_lossy().into_owned()
     } else {
@@ -300,7 +332,7 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
         Block::default()
             .title(path_title)
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Gray)),
+            .style(Style::default().fg(Color::Gray).bg(Color::Black)),
     );
 
     f.render_widget(preview, area);
