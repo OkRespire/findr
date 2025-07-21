@@ -1,4 +1,3 @@
-use clap::parser::Indices;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -75,26 +74,19 @@ pub fn run_app(
                 .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .split(vertical_chunks[1]);
             draw_search_bar(
-                &state.query,
+                &state,
                 vertical_chunks[0],
                 f,
                 matches!(state.focus, Focus::SearchBar),
             );
             draw_content_box(
-                &state.filtered_files,
+                &state,
                 horizontal_chunks[0],
                 f,
                 matches!(state.focus, Focus::Results),
-                state.selected_idx,
-                state.scroll_offset,
             );
 
-            draw_file_preview(
-                horizontal_chunks[1],
-                f,
-                &state.preview_cache,
-                &state.selected_path,
-            );
+            draw_file_preview(horizontal_chunks[1], f, &state);
             let max_visible = horizontal_chunks[0].height.saturating_sub(3);
 
             if state.selected_idx < state.scroll_offset as usize {
@@ -172,6 +164,22 @@ pub fn run_app(
     Ok(())
 }
 
+fn update_preview(app_state: &mut AppState) -> HashMap<PathBuf, Text<'static>> {
+    if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
+        app_state.selected_path = Some(path.clone());
+        if !app_state.preview_cache.contains_key(path) {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                let highlighted = highlight_contents(path, &content);
+                app_state.preview_cache.insert(path.clone(), highlighted);
+            } else {
+                app_state
+                    .preview_cache
+                    .insert(path.clone(), Text::from("No Preview available"));
+            }
+        }
+    }
+}
+
 /// Uses nucleo to score files and ensures it is going in descending order, through the score
 fn update_filtered_files(
     query_utf32: Utf32Str,
@@ -200,18 +208,12 @@ fn update_filtered_files(
         .collect::<Vec<(PathBuf, String, Vec<u32>)>>()
 }
 
-fn draw_content_box(
-    contents: &[(PathBuf, String, Vec<u32>)],
-    size: Rect,
-    f: &mut Frame<'_>,
-    focused: bool,
-    s_idx: usize,
-    scroll_offset: u16,
-) {
-    let line_of_content: Vec<Line> = contents
+fn draw_content_box(app_state: &AppState, size: Rect, f: &mut Frame<'_>, focused: bool) {
+    let line_of_content: Vec<Line> = app_state
+        .filtered_files
         .iter()
         .enumerate()
-        .map(|(i, (_p, n, v))| {
+        .map(|(i, (_, n, v))| {
             // p = path
             // n = name
             // v = index vector
@@ -231,7 +233,7 @@ fn draw_content_box(
                 spans.push(Span::styled(ch.to_string(), style));
             }
 
-            if i == s_idx {
+            if i == app_state.selected_idx {
                 let selected_style = Style::default().bg(Color::White).fg(Color::Black);
                 let line = Line::from(spans);
                 let selected_spans = line
@@ -245,11 +247,12 @@ fn draw_content_box(
             }
         })
         .collect();
+    let title_text = format!("Results ({})", app_state.filtered_files.len());
 
     let content_box = Paragraph::new(Text::from(line_of_content))
         .block(
             Block::default()
-                .title("Files")
+                .title(title_text)
                 .borders(Borders::ALL)
                 .style(if focused {
                     Style::default().fg(Color::Yellow)
@@ -257,17 +260,17 @@ fn draw_content_box(
                     Style::default()
                 }),
         )
-        .scroll((scroll_offset, 0));
+        .scroll((app_state.scroll_offset, 0));
     f.render_widget(content_box, size);
 }
 
-fn draw_search_bar(query: &str, size: Rect, f: &mut Frame, focused: bool) {
+fn draw_search_bar(app_state: &AppState, size: Rect, f: &mut Frame, focused: bool) {
     let input_hint = "Type your query here";
 
-    let display_text: _ = if query.is_empty() {
+    let display_text: _ = if app_state.query.is_empty() {
         Paragraph::new(input_hint).style(Style::default().fg(Color::DarkGray))
     } else {
-        Paragraph::new(String::from(query))
+        Paragraph::new(String::from(&app_state.query))
     };
 
     let search_box = display_text
@@ -281,20 +284,21 @@ fn draw_search_bar(query: &str, size: Rect, f: &mut Frame, focused: bool) {
     f.render_widget(search_box, size);
 }
 
-fn draw_file_preview(
-    area: Rect,
-    f: &mut Frame<'_>,
-    preview_cache: &HashMap<PathBuf, Text<'static>>,
-    selected_path: &Option<PathBuf>,
-) {
-    let text = selected_path
+fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
+    let text = app_state
+        .selected_path
         .as_ref()
-        .and_then(|path| preview_cache.get(path).cloned())
+        .and_then(|path| app_state.preview_cache.get(path).cloned())
         .unwrap_or_else(|| Text::from("No Preview available"));
+    let path_title = if let Some(path_name) = &app_state.selected_path {
+        path_name.to_string_lossy().into_owned()
+    } else {
+        "No directory selected".to_string()
+    };
 
     let preview = Paragraph::new(text).block(
         Block::default()
-            .title("Preview")
+            .title(path_title)
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::Gray)),
     );
