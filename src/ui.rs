@@ -30,6 +30,8 @@ struct AppState {
     scroll_offset: u16,
     selected_path: Option<PathBuf>,
     preview_cache: HashMap<PathBuf, Text<'static>>,
+    curr_preview_height: u16,
+    curr_preview_width: u16,
 }
 
 enum Focus {
@@ -61,6 +63,8 @@ pub fn run_app(
         selected_idx: 0,
         preview_cache: HashMap::new(),
         selected_path: None,
+        curr_preview_height: 0,
+        curr_preview_width: 0,
     };
 
     loop {
@@ -79,20 +83,29 @@ pub fn run_app(
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .split(vertical_chunks[1]);
+            let search_chunk = vertical_chunks[0];
+            let content_chunk = horizontal_chunks[0];
+            let preview_chunk = horizontal_chunks[1];
+
+            let preview_block_for_calc = Block::default().borders(Borders::ALL);
+            let inner_preview_area = preview_block_for_calc.inner(horizontal_chunks[1]);
+
+            state.curr_preview_width = inner_preview_area.width;
+            state.curr_preview_height = inner_preview_area.height;
             draw_search_bar(
                 &state,
-                vertical_chunks[0],
+                search_chunk,
                 f,
                 matches!(state.focus, Focus::SearchBar),
             );
             draw_content_box(
                 &state,
-                horizontal_chunks[0],
+                content_chunk,
                 f,
                 matches!(state.focus, Focus::Results),
             );
 
-            draw_file_preview(horizontal_chunks[1], f, &state);
+            draw_file_preview(preview_chunk, f, &state);
         })?;
 
         let max_visible = terminal.size()?.height.saturating_sub(6);
@@ -189,7 +202,12 @@ fn update_preview(app_state: &mut AppState) {
         app_state.selected_path = Some(path.clone());
         if !app_state.preview_cache.contains_key(path) {
             if let Ok(content) = std::fs::read_to_string(path) {
-                let highlighted = highlight_contents(path, &content);
+                let highlighted = highlight_contents(
+                    path,
+                    &content,
+                    app_state.curr_preview_height,
+                    app_state.curr_preview_width,
+                );
                 app_state.preview_cache.insert(path.clone(), highlighted);
             } else {
                 app_state
@@ -323,7 +341,7 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
         Block::default()
             .title(path_title)
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Gray).bg(Color::Black)),
+            .style(Style::default().fg(Color::Gray)),
     );
 
     f.render_widget(RatatuiClear, area);

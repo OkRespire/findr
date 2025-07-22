@@ -16,21 +16,29 @@ lazy_static::lazy_static! {
     pub static ref ts: ThemeSet = ThemeSet::load_defaults();
 }
 
-pub fn highlight_contents(file_path: &Path, content: &str) -> Text<'static> {
+pub fn highlight_contents(
+    file_path: &Path,
+    content: &str,
+    prev_height: u16,
+    prev_width: u16,
+) -> Text<'static> {
     let syntax = ss
         .find_syntax_for_file(file_path)
         .ok()
         .flatten()
         .unwrap_or_else(|| ss.find_syntax_plain_text());
 
-    let mut h = HighlightLines::new(&syntax, &ts.themes["base16-ocean.dark"]);
+    let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
+    let default_theme_bg_color =
+        convert_syntect_color(ts.themes["base16-ocean.dark"].settings.background.unwrap());
 
-    let mut lines = Vec::new();
+    let mut lines_to_render = Vec::new();
+    let max_display_lines = 50;
 
-    for line_str in content.lines().take(50) {
+    for line_str in content.lines().take(max_display_lines) {
         let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line_str, &ss).unwrap_or_default();
 
-        let spans: Vec<Span<'static>> = ranges
+        let mut spans: Vec<Span<'static>> = ranges
             .into_iter()
             .map(|(style, text)| {
                 Span::styled(
@@ -39,11 +47,30 @@ pub fn highlight_contents(file_path: &Path, content: &str) -> Text<'static> {
                 )
             })
             .collect();
+        let curr_line_width = spans.iter().map(|s| s.width()).sum::<usize>() as u16;
+        if curr_line_width < prev_width {
+            let pad_len = prev_width - curr_line_width;
+            let padding_bg_col = spans
+                .last()
+                .and_then(|last_span| last_span.style.bg)
+                .unwrap_or(default_theme_bg_color);
+            spans.push(Span::styled(
+                " ".repeat(pad_len as usize),
+                Style::default().bg(padding_bg_col),
+            ));
+        }
 
-        lines.push(Line::from(spans));
+        lines_to_render.push(Line::from(spans));
     }
 
-    Text::from(lines)
+    while (lines_to_render.len() as u16) < prev_height {
+        lines_to_render.push(Line::from(Span::styled(
+            " ".repeat(prev_width as usize),
+            Style::default().bg(default_theme_bg_color),
+        )));
+    }
+
+    Text::from(lines_to_render)
 }
 
 fn convert_syntect_color(color: syntect::highlighting::Color) -> ratatui::style::Color {
