@@ -92,7 +92,6 @@ pub fn run_app(
                 matches!(state.focus, Focus::Results),
             );
 
-            f.render_widget(RatatuiClear, horizontal_chunks[1]);
             draw_file_preview(horizontal_chunks[1], f, &state);
         })?;
 
@@ -172,22 +171,6 @@ pub fn run_app(
         if state.selected_idx != prev_selected || state.query != prev_query {
             update_preview(&mut state);
         }
-
-        if let Some((path, _, _)) = state.filtered_files.get(state.selected_idx) {
-            state.selected_path = Some(path.clone());
-
-            state
-                .preview_cache
-                .insert(path.clone(), Text::from("Loading preview..."));
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let highlighted = highlight_contents(path, &content);
-                state.preview_cache.insert(path.clone(), highlighted);
-            } else {
-                state
-                    .preview_cache
-                    .insert(path.clone(), Text::from("No Preview available"));
-            }
-        }
     }
 
     // Cleanup
@@ -198,6 +181,11 @@ pub fn run_app(
 
 fn update_preview(app_state: &mut AppState) {
     if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
+        if app_state.selected_path.as_ref() != Some(path)
+            || !app_state.preview_cache.contains_key(path)
+        {
+            app_state.selected_path = Some(path.clone());
+        }
         app_state.selected_path = Some(path.clone());
         if !app_state.preview_cache.contains_key(path) {
             if let Ok(content) = std::fs::read_to_string(path) {
@@ -209,6 +197,9 @@ fn update_preview(app_state: &mut AppState) {
                     .insert(path.clone(), Text::from("No Preview available"));
             }
         }
+    } else {
+        app_state.selected_path = None;
+        app_state.preview_cache.clear();
     }
 }
 
@@ -335,5 +326,6 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
             .style(Style::default().fg(Color::Gray).bg(Color::Black)),
     );
 
+    f.render_widget(RatatuiClear, area);
     f.render_widget(preview, area);
 }

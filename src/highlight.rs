@@ -27,8 +27,8 @@ pub fn highlight_contents(file_path: &Path, content: &str) -> Text<'static> {
 
     let mut lines = Vec::new();
 
-    for line in content.lines().take(50) {
-        let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line, &ss).unwrap_or_default();
+    for line_str in content.lines().take(50) {
+        let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line_str, &ss).unwrap_or_default();
 
         let spans: Vec<Span<'static>> = ranges
             .into_iter()
