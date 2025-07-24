@@ -83,12 +83,14 @@ pub fn run_app(
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .split(vertical_chunks[1]);
+
+            // Inspired from television's solution (https://github.com/alexpasmantier/television)
             let search_chunk = vertical_chunks[0];
             let content_chunk = horizontal_chunks[0];
             let preview_chunk = horizontal_chunks[1];
 
             let preview_block_for_calc = Block::default().borders(Borders::ALL);
-            let inner_preview_area = preview_block_for_calc.inner(horizontal_chunks[1]);
+            let inner_preview_area = preview_block_for_calc.inner(preview_chunk);
 
             state.curr_preview_width = inner_preview_area.width;
             state.curr_preview_height = inner_preview_area.height;
@@ -165,14 +167,14 @@ pub fn run_app(
         }
 
         let query_lower = &state.query.to_lowercase();
-        let query_utf32 = Utf32Str::new(&query_lower, &mut buf);
+        let query_utf32 = Utf32Str::new(query_lower, &mut buf);
 
         state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
 
         // Update filtered files if query changed
         if state.query != prev_query {
             let query_lower = &state.query.to_lowercase();
-            let query_utf32 = Utf32Str::new(&query_lower, &mut buf);
+            let query_utf32 = Utf32Str::new(query_lower, &mut buf);
             state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
 
             // Reset selection if query changed
