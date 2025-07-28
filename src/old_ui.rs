@@ -17,6 +17,8 @@ use ratatui::{
     widgets::{Block, Borders, Clear as RatatuiClear, Paragraph},
 };
 
+mod appstate;
+mod focus;
 use nucleo::{Matcher, Utf32Str};
 use std::{collections::HashMap, error::Error, io, path::PathBuf};
 
