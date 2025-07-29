@@ -29,8 +29,6 @@ pub fn highlight_contents(
         .unwrap_or_else(|| SS.find_syntax_plain_text());
 
     let mut h = HighlightLines::new(syntax, &TS.themes["base16-ocean.dark"]);
-    let default_theme_bg_color =
-        convert_syntect_color(TS.themes["base16-ocean.dark"].settings.background.unwrap());
 
     let mut lines_to_render = Vec::new();
     let max_display_lines = 50;
@@ -50,10 +48,6 @@ pub fn highlight_contents(
         let curr_line_width = spans.iter().map(|s| s.width()).sum::<usize>() as u16;
         if curr_line_width < prev_width {
             let pad_len = prev_width - curr_line_width;
-            // let padding_bg_col = spans
-            //     .last()
-            //     .and_then(|last_span| last_span.style.bg)
-            //     .unwrap_or(default_theme_bg_color);
             spans.push(Span::styled(" ".repeat(pad_len as usize), Style::default()));
         }
 

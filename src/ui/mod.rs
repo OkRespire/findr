@@ -72,25 +72,20 @@ pub fn run_app(
         }
         state.scroll_offset = (state.selected_idx as u16).saturating_sub(max_visible + 1);
 
-        match event::read()? {
-            event => {
-                match event_handler::handle_events(
-                    event, &all_files, matcher, &mut buf, &mut state,
-                )? {
-                    AppAction::Quit => break,
-                    AppAction::Continue => (),
-                    AppAction::EditFile(path) => {
-                        disable_raw_mode()?;
-                        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-                        event_handler::edit_file(path)?;
-                        enable_raw_mode()?;
-                        execute!(
-                            terminal.backend_mut(),
-                            EnterAlternateScreen,
-                            Clear(ClearType::All)
-                        )?;
-                    }
-                }
+        let event = event::read()?;
+        match event_handler::handle_events(event, all_files, matcher, &mut buf, &mut state)? {
+            AppAction::Quit => break,
+            AppAction::Continue => (),
+            AppAction::EditFile(path) => {
+                disable_raw_mode()?;
+                execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                event_handler::edit_file(path)?;
+                enable_raw_mode()?;
+                execute!(
+                    terminal.backend_mut(),
+                    EnterAlternateScreen,
+                    Clear(ClearType::All)
+                )?;
             }
         }
     }

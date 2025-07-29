@@ -33,19 +33,19 @@ pub fn draw_ui(f: &mut Frame<'_>, state: &mut AppState) {
     state.curr_preview_width = inner_preview_area.width;
     state.curr_preview_height = inner_preview_area.height;
     draw_search_bar(
-        &state,
+        state,
         search_chunk,
         f,
         matches!(state.focus, Focus::SearchBar),
     );
     draw_content_box(
-        &state,
+        state,
         content_chunk,
         f,
         matches!(state.focus, Focus::Results),
     );
 
-    draw_file_preview(preview_chunk, f, &state);
+    draw_file_preview(preview_chunk, f, state);
 }
 
 fn draw_content_box(app_state: &AppState, size: Rect, f: &mut Frame<'_>, focused: bool) {
@@ -107,7 +107,7 @@ fn draw_content_box(app_state: &AppState, size: Rect, f: &mut Frame<'_>, focused
 fn draw_search_bar(app_state: &AppState, size: Rect, f: &mut Frame, focused: bool) {
     let input_hint = "Type your query here";
 
-    let display_text: _ = if app_state.query.is_empty() {
+    let display_text = if app_state.query.is_empty() {
         Paragraph::new(input_hint).style(Style::default().fg(Color::DarkGray))
     } else {
         Paragraph::new(String::from(&app_state.query))
