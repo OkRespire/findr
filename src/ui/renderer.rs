@@ -1,14 +1,14 @@
-use crate::ui::appstate::AppState;
+use crate::ui::appstate::{AppState, Focus};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     prelude::Color,
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Clear as RatatuiClear, Paragraph},
 };
 
-pub fn draw_ui(f: &mut Frame<'_>, state: &AppState) {
+pub fn draw_ui(f: &mut Frame<'_>, state: &mut AppState) {
     f.render_widget(RatatuiClear, f.area());
 
     let size = f.area();

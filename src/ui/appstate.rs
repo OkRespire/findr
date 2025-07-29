@@ -22,14 +22,9 @@ pub struct AppState {
 impl AppState {
     pub fn new(all_files: &Vec<PathBuf>, matcher: &mut nucleo::Matcher) -> Self {
         let mut buf = Vec::new(); // Local buffer for UTF32 conversion
-        AppState {
+        let mut state = AppState {
             query: String::new(),
-            filtered_files: super::update_filtered_files(
-                // Use `super::` to call update_filtered_files from mod.rs or parent
-                nucleo::Utf32Str::new("", &mut buf),
-                all_files,
-                matcher,
-            ),
+            filtered_files: Vec::new(),
             focus: Focus::SearchBar,
             scroll_offset: 0,
             selected_idx: 0,
@@ -37,9 +32,14 @@ impl AppState {
             selected_path: None,
             curr_preview_height: 0,
             curr_preview_width: 0,
-        }
+        };
+
+        state.update_filtered_files(nucleo::Utf32Str::new("", &mut buf), all_files, matcher);
+
+        state
     }
 
+    /// Updates files based on the query inputted
     pub fn update_filtered_files(
         &mut self,
         query_utf32: Utf32Str,

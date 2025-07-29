@@ -3,8 +3,7 @@ use crossterm::event::{Event, KeyCode};
 use nucleo::{Matcher, Utf32Str};
 use std::error::Error;
 
-// Re-export edit::edit_file if you want to keep the edit logic here
-pub use edit::edit_file; // Using pub use to make it available from this module
+pub use edit::edit_file;
 
 pub enum AppAction {
     Quit,
@@ -56,8 +55,7 @@ pub fn handle_events(
                 KeyCode::Esc => return Ok(AppAction::Quit),
                 KeyCode::Enter => {
                     if let Some((edit_path, _, _)) = state.filtered_files.get(state.selected_idx) {
-                        edit::edit_file(edit_path)?;
-                        return Ok(AppAction::Quit);
+                        return Ok(AppAction::EditFile(edit_path.clone()));
                     }
                 }
                 _ => {}

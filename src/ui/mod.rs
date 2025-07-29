@@ -1,13 +1,18 @@
 use crossterm::{
-    event::{self, Event},
+    event::{self},
     execute,
     terminal::{
         Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
         enable_raw_mode,
     },
 };
-use nucleo::{Matcher, Utf32Str};
-use ratatui::{Terminal, backend::CrosstermBackend, text::Text};
+use ratatui::{
+    Terminal,
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+    text::Text,
+    widgets::{Block, Borders},
+};
 use std::{error::Error, io, path::PathBuf};
 
 // Bring in our new modules
@@ -16,7 +21,7 @@ pub mod event_handler;
 pub mod renderer;
 
 // Bring in types from our sub-modules
-use appstate::{AppState, Focus};
+use appstate::AppState;
 use event_handler::AppAction; // Bring in the enum from event_handler
 
 // Import highlight from the crate root
@@ -33,141 +38,60 @@ pub fn run_app(
     let mut terminal = Terminal::new(backend)?;
     let mut buf = Vec::new();
 
-    let mut state = AppState {
-        query: String::new(),
-        filtered_files: update_filtered_files(
-            Utf32Str::new("", &mut buf), // empty query
-            all_files,
-            matcher,
-        ),
-
-        focus: Focus::SearchBar,
-        scroll_offset: 0,
-        selected_idx: 0,
-        preview_cache: HashMap::new(),
-        selected_path: None,
-        curr_preview_height: 0,
-        curr_preview_width: 0,
-    };
+    let mut state = AppState::new(all_files, matcher);
 
     loop {
         buf.clear();
+        let size = terminal.get_frame().area();
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(1)])
+            .split(size);
+
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(vertical_chunks[1]);
+        let preview_chunk = horizontal_chunks[1];
+
+        let preview_block_for_calc = Block::default().borders(Borders::ALL);
+        let inner_preview_area = preview_block_for_calc.inner(preview_chunk);
+
+        state.curr_preview_width = inner_preview_area.width;
+        state.curr_preview_height = inner_preview_area.height;
 
         terminal.draw(|f| {
-            f.render_widget(RatatuiClear, f.area());
-
-            let size = f.area();
-            let vertical_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Length(3), Constraint::Min(1)])
-                .split(size);
-
-            let horizontal_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-                .split(vertical_chunks[1]);
-
-            // Inspired from television's solution (https://github.com/alexpasmantier/television)
-            let search_chunk = vertical_chunks[0];
-            let content_chunk = horizontal_chunks[0];
-            let preview_chunk = horizontal_chunks[1];
-
-            let preview_block_for_calc = Block::default().borders(Borders::ALL);
-            let inner_preview_area = preview_block_for_calc.inner(preview_chunk);
-
-            state.curr_preview_width = inner_preview_area.width;
-            state.curr_preview_height = inner_preview_area.height;
-            draw_search_bar(
-                &state,
-                search_chunk,
-                f,
-                matches!(state.focus, Focus::SearchBar),
-            );
-            draw_content_box(
-                &state,
-                content_chunk,
-                f,
-                matches!(state.focus, Focus::Results),
-            );
-
-            draw_file_preview(preview_chunk, f, &state);
+            renderer::draw_ui(f, &mut state);
         })?;
 
         let max_visible = terminal.size()?.height.saturating_sub(6);
 
         if state.selected_idx < state.scroll_offset as usize {
             state.scroll_offset = state.selected_idx as u16;
-        } else if state.selected_idx as u16 >= state.scroll_offset + max_visible {
-            state.scroll_offset = state.selected_idx as u16 - max_visible + 1
+        } else if state.selected_idx as u16 >= state.scroll_offset.saturating_add(max_visible) {
         }
+        state.scroll_offset = (state.selected_idx as u16).saturating_sub(max_visible + 1);
 
-        let prev_query = state.query.clone();
-        let prev_selected = state.selected_idx;
-        if let Event::Key(key) = event::read()? {
-            match state.focus {
-                Focus::SearchBar => match key.code {
-                    KeyCode::Char(c) => {
-                        state.query.push(c);
+        match event::read()? {
+            event => {
+                match event_handler::handle_events(
+                    event, &all_files, matcher, &mut buf, &mut state,
+                )? {
+                    AppAction::Quit => break,
+                    AppAction::Continue => (),
+                    AppAction::EditFile(path) => {
+                        disable_raw_mode()?;
+                        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                        event_handler::edit_file(path)?;
+                        enable_raw_mode()?;
+                        execute!(
+                            terminal.backend_mut(),
+                            EnterAlternateScreen,
+                            Clear(ClearType::All)
+                        )?;
                     }
-                    KeyCode::Backspace => {
-                        state.query.pop();
-                    }
-                    KeyCode::Tab => {
-                        state.focus = Focus::Results;
-                    }
-                    KeyCode::Esc => break,
-                    KeyCode::Enter => state.focus = Focus::Results,
-                    _ => {}
-                },
-                Focus::Results => match key.code {
-                    KeyCode::Up => {
-                        if state.selected_idx > 0 {
-                            state.selected_idx -= 1;
-                        } else {
-                            state.selected_idx = state.filtered_files.len() - 1
-                        }
-                    }
-                    KeyCode::Down => {
-                        if state.selected_idx + 1 < state.filtered_files.len() {
-                            state.selected_idx += 1;
-                        } else {
-                            state.selected_idx = 0
-                        }
-                    }
-                    KeyCode::Tab => state.focus = Focus::SearchBar,
-                    KeyCode::Esc => break,
-                    KeyCode::Enter => {
-                        if let Some((edit_path, _, _)) =
-                            state.filtered_files.get(state.selected_idx)
-                        {
-                            edit::edit_file(edit_path)?;
-                            break;
-                        }
-                    }
-                    _ => {}
-                },
+                }
             }
-        }
-
-        let query_lower = &state.query.to_lowercase();
-        let query_utf32 = Utf32Str::new(query_lower, &mut buf);
-
-        state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
-
-        // Update filtered files if query changed
-        if state.query != prev_query {
-            let query_lower = &state.query.to_lowercase();
-            let query_utf32 = Utf32Str::new(query_lower, &mut buf);
-            state.filtered_files = update_filtered_files(query_utf32, all_files, matcher);
-
-            // Reset selection if query changed
-            state.selected_idx = 0;
-            state.scroll_offset = 0;
-        }
-
-        // Update preview if selection changed or query changed
-        if state.selected_idx != prev_selected || state.query != prev_query {
-            update_preview(&mut state);
         }
     }
 
