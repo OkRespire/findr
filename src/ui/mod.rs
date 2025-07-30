@@ -10,7 +10,6 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    text::Text,
     widgets::{Block, Borders},
 };
 use std::{error::Error, io, path::PathBuf};
@@ -23,9 +22,6 @@ pub mod renderer;
 // Bring in types from our sub-modules
 use appstate::AppState;
 use event_handler::AppAction; // Bring in the enum from event_handler
-
-// Import highlight from the crate root
-use crate::highlight::highlight_contents;
 
 pub fn run_app(
     all_files: &Vec<PathBuf>,
@@ -94,33 +90,4 @@ pub fn run_app(
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
-}
-
-fn update_preview(app_state: &mut AppState) {
-    if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
-        if app_state.selected_path.as_ref() != Some(path)
-            || !app_state.preview_cache.contains_key(path)
-        {
-            app_state.selected_path = Some(path.clone());
-        }
-        app_state.selected_path = Some(path.clone());
-        if !app_state.preview_cache.contains_key(path) {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let highlighted = highlight_contents(
-                    path,
-                    &content,
-                    app_state.curr_preview_height,
-                    app_state.curr_preview_width,
-                );
-                app_state.preview_cache.insert(path.clone(), highlighted);
-            } else {
-                app_state
-                    .preview_cache
-                    .insert(path.clone(), Text::from("No Preview available"));
-            }
-        }
-    } else {
-        app_state.selected_path = None;
-        app_state.preview_cache.clear();
-    }
 }

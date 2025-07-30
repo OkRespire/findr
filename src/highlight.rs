@@ -16,12 +16,12 @@ lazy_static::lazy_static! {
     pub static ref TS: ThemeSet = ThemeSet::load_defaults();
 }
 
-pub fn highlight_contents(
+pub fn highlight_contents<'a>(
     file_path: &Path,
     content: &str,
     prev_height: u16,
     prev_width: u16,
-) -> Text<'static> {
+) -> Text<'a> {
     let syntax = SS
         .find_syntax_for_file(file_path)
         .ok()
@@ -36,7 +36,7 @@ pub fn highlight_contents(
     for line_str in content.lines().take(max_display_lines) {
         let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line_str, &SS).unwrap_or_default();
 
-        let mut spans: Vec<Span<'static>> = ranges
+        let mut spans: Vec<Span<'a>> = ranges
             .into_iter()
             .map(|(style, text)| {
                 Span::styled(

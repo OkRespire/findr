@@ -81,7 +81,7 @@ pub fn handle_events(
 
     // Update preview if selection changed or query changed
     if state.selected_idx != prev_selected || state.query != prev_query {
-        super::update_preview(state);
+        state.update_preview();
     }
 
     Ok(AppAction::Continue)
