@@ -27,6 +27,10 @@ pub fn draw_ui(f: &mut Frame<'_>, state: &mut AppState) {
     let content_chunk = horizontal_chunks[0];
     let preview_chunk = horizontal_chunks[1];
 
+    f.render_widget(RatatuiClear, search_chunk);
+    f.render_widget(RatatuiClear, content_chunk);
+    f.render_widget(RatatuiClear, preview_chunk);
+
     let preview_block_for_calc = Block::default().borders(Borders::ALL);
     let inner_preview_area = preview_block_for_calc.inner(preview_chunk);
 
@@ -125,7 +129,6 @@ fn draw_search_bar(app_state: &AppState, size: Rect, f: &mut Frame, focused: boo
 }
 
 fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
-    f.render_widget(RatatuiClear, area);
     let text = app_state
         .selected_path
         .as_ref()

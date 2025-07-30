@@ -16,12 +16,7 @@ lazy_static::lazy_static! {
     pub static ref TS: ThemeSet = ThemeSet::load_defaults();
 }
 
-pub fn highlight_contents<'a>(
-    file_path: &Path,
-    content: &str,
-    prev_height: u16,
-    prev_width: u16,
-) -> Text<'a> {
+pub fn highlight_contents<'a>(file_path: &Path, content: &str) -> Text<'a> {
     let syntax = SS
         .find_syntax_for_file(file_path)
         .ok()
@@ -45,20 +40,8 @@ pub fn highlight_contents<'a>(
                 )
             })
             .collect();
-        let curr_line_width = spans.iter().map(|s| s.width()).sum::<usize>() as u16;
-        if curr_line_width < prev_width {
-            let pad_len = prev_width - curr_line_width;
-            spans.push(Span::styled(" ".repeat(pad_len as usize), Style::default()));
-        }
 
         lines_to_render.push(Line::from(spans));
-    }
-
-    while (lines_to_render.len() as u16) < prev_height {
-        lines_to_render.push(Line::from(Span::styled(
-            " ".repeat(prev_width as usize),
-            Style::default(),
-        )));
     }
 
     Text::from(lines_to_render)

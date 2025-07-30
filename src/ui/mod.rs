@@ -33,6 +33,7 @@ pub fn run_app(
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut buf = Vec::new();
+    terminal.clear()?;
 
     let mut state = AppState::new(all_files, matcher);
 

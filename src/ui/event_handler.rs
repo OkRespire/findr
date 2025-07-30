@@ -63,6 +63,7 @@ pub fn handle_events(
         }
     }
 
+    buf.clear();
     let query_lower = &state.query.to_lowercase();
     let query_utf32 = Utf32Str::new(query_lower, buf);
 
@@ -70,6 +71,11 @@ pub fn handle_events(
 
     // Update filtered files if query changed
     if state.query != prev_query {
+        if state.query.is_empty() {
+            *matcher = nucleo::Matcher::default(); // reset matcher for empty queries (thanks
+            // claude)
+        }
+        buf.clear();
         let query_lower = &state.query.to_lowercase();
         let query_utf32 = Utf32Str::new(query_lower, buf);
         state.update_filtered_files(query_utf32, &all_files, matcher);

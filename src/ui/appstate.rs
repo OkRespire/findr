@@ -38,6 +38,7 @@ impl<'a> AppState<'a> {
         };
 
         state.update_filtered_files(nucleo::Utf32Str::new("", &mut buf), all_files, matcher);
+        buf.clear();
 
         state
     }
@@ -49,6 +50,7 @@ impl<'a> AppState<'a> {
         contents: &[PathBuf],
         matcher: &mut Matcher,
     ) {
+        self.filtered_files.clear();
         let mut scored_files = contents
             .iter()
             .filter_map(|path| {
@@ -57,9 +59,13 @@ impl<'a> AppState<'a> {
                 let name_utf32 = Utf32Str::new(&name, &mut name_buf);
 
                 let mut match_buf = Vec::new();
-                matcher
+                let files = matcher
                     .fuzzy_indices(name_utf32, query_utf32, &mut match_buf)
-                    .map(|score| (score, path.clone(), name, match_buf.clone()))
+                    .map(|score| (score, path.clone(), name, match_buf.clone()));
+                name_buf.clear();
+                match_buf.clear();
+
+                files
             })
             .collect::<Vec<_>>();
 
@@ -76,46 +82,35 @@ impl<'a> AppState<'a> {
             if self.selected_path.as_ref() != Some(path) || !self.preview_cache.contains_key(path) {
                 self.selected_path = Some(path.clone());
             }
-            self.selected_path = Some(path.clone());
-            if !self.preview_cache.contains_key(path) {
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    let highlighted = highlight_contents(
-                        path,
-                        &content,
-                        self.curr_preview_height,
-                        self.curr_preview_width,
-                    );
-                    self.preview_cache.insert(path.clone(), highlighted);
-                } else {
-                    let mut lines = Vec::new();
+
+            let cache_key = format!(
+                "{}:{}x{}",
+                path.to_string_lossy(),
+                self.curr_preview_width,
+                self.curr_preview_height
+            );
+            // if !self.preview_cache.contains_key(path) {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                let highlighted = highlight_contents(path, &content);
+                self.preview_cache.insert(path.clone(), highlighted);
+            } else {
+                let mut lines = Vec::new();
+                lines.push(Line::from(Span::styled(
+                    "No Preview available",
+                    Style::default().fg(ratatui::prelude::Color::DarkGray),
+                )));
+                while (lines.len() as u16) < self.curr_preview_height {
                     lines.push(Line::from(Span::styled(
-                        "No Preview available",
-                        Style::default().fg(ratatui::prelude::Color::DarkGray),
+                        " ".repeat(self.curr_preview_width as usize), // Pad to full width
+                        Style::default(),                             // Transparent background
                     )));
-                    while (lines.len() as u16) < self.curr_preview_height {
-                        lines.push(Line::from(Span::styled(
-                            " ".repeat(self.curr_preview_width as usize), // Pad to full width
-                            Style::default(),                             // Transparent background
-                        )));
-                    }
-                    self.preview_cache.insert(path.clone(), Text::from(lines));
                 }
+                self.preview_cache.insert(path.clone(), Text::from(lines));
             }
+            // }
         } else {
             self.selected_path = None;
             self.preview_cache.clear();
-
-            let mut lines = Vec::new();
-            lines.push(Line::from(Span::styled(
-                "No directory selected",
-                Style::default().fg(ratatui::prelude::Color::DarkGray),
-            )));
-            while (lines.len() as u16) < self.curr_preview_height {
-                lines.push(Line::from(Span::styled(
-                    " ".repeat(self.curr_preview_width as usize),
-                    Style::default(),
-                )));
-            }
         }
     }
 }
