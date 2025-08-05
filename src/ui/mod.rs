@@ -10,8 +10,6 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::{Line, Span, Text},
     widgets::{Block, Borders},
 };
 use std::{error::Error, io, path::PathBuf};
@@ -35,6 +33,7 @@ pub fn run_app(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Result<(
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut buf = Vec::new();
+    terminal.clear()?;
 
     let mut state = AppState::new(all_files, matcher);
 
@@ -94,6 +93,7 @@ pub fn run_app(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Result<(
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
+<<<<<<< HEAD
 
 fn update_preview(app_state: &mut AppState) {
     if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
@@ -150,3 +150,5 @@ fn update_preview(app_state: &mut AppState) {
         app_state.preview_cache.clear();
     }
 }
+=======
+>>>>>>> refs/remotes/origin/main

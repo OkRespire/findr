@@ -27,6 +27,10 @@ pub fn draw_ui(f: &mut Frame<'_>, state: &mut AppState) {
     let content_chunk = horizontal_chunks[0];
     let preview_chunk = horizontal_chunks[1];
 
+    f.render_widget(RatatuiClear, search_chunk);
+    f.render_widget(RatatuiClear, content_chunk);
+    f.render_widget(RatatuiClear, preview_chunk);
+
     let preview_block_for_calc = Block::default().borders(Borders::ALL);
     let inner_preview_area = preview_block_for_calc.inner(preview_chunk);
 
@@ -129,7 +133,21 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
         .selected_path
         .as_ref()
         .and_then(|path| app_state.preview_cache.get(path).cloned())
-        .unwrap_or_else(|| Text::from(""));
+        .unwrap_or_else(|| {
+            let mut lines = Vec::new();
+            lines.push(ratatui::text::Line::from(ratatui::text::Span::styled(
+                "No Preview available",
+                Style::default().fg(Color::DarkGray),
+            )));
+            while (lines.len() as u16) < app_state.curr_preview_height {
+                lines.push(ratatui::text::Line::from(ratatui::text::Span::styled(
+                    " ".repeat(app_state.curr_preview_width as usize),
+                    Style::default(),
+                )));
+            }
+            Text::from(lines)
+        });
+
     let path_title = if let Some(path_name) = &app_state.selected_path {
         path_name.to_string_lossy().into_owned()
     } else {
@@ -140,9 +158,8 @@ fn draw_file_preview(area: Rect, f: &mut Frame<'_>, app_state: &AppState) {
         Block::default()
             .title(path_title)
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Gray)),
+            .style(Style::default().fg(Color::Gray).bg(Color::Reset)),
     );
 
-    f.render_widget(RatatuiClear, area);
     f.render_widget(preview, area);
 }

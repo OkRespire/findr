@@ -16,12 +16,7 @@ lazy_static::lazy_static! {
     pub static ref TS: ThemeSet = ThemeSet::load_defaults();
 }
 
-pub fn highlight_contents(
-    file_path: &Path,
-    content: &str,
-    prev_height: u16,
-    prev_width: u16,
-) -> Text<'static> {
+pub fn highlight_contents<'a>(file_path: &Path, content: &str) -> Text<'a> {
     let syntax = SS
         .find_syntax_for_file(file_path)
         .ok()
@@ -36,7 +31,7 @@ pub fn highlight_contents(
     for line_str in content.lines().take(max_display_lines) {
         let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line_str, &SS).unwrap_or_default();
 
-        let mut spans: Vec<Span<'static>> = ranges
+        let mut spans: Vec<Span<'a>> = ranges
             .into_iter()
             .map(|(style, text)| {
                 Span::styled(
@@ -45,14 +40,18 @@ pub fn highlight_contents(
                 )
             })
             .collect();
+<<<<<<< HEAD
         spans.push(Span::styled(
             " ".repeat(prev_width as usize),
             Style::default(),
         ));
+=======
+>>>>>>> refs/remotes/origin/main
 
         lines_to_render.push(Line::from(spans));
     }
 
+<<<<<<< HEAD
     while (lines_to_render.len() as u16) < prev_height {
         lines_to_render.push(Line::from(Span::styled(
             " ".repeat(prev_height as usize),
@@ -60,6 +59,8 @@ pub fn highlight_contents(
         )));
     }
 
+=======
+>>>>>>> refs/remotes/origin/main
     Text::from(lines_to_render)
 }
 
