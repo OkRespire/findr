@@ -93,7 +93,6 @@ pub fn run_app(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Result<(
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
-<<<<<<< HEAD
 
 fn update_preview(app_state: &mut AppState) {
     if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
@@ -150,5 +149,3 @@ fn update_preview(app_state: &mut AppState) {
         app_state.preview_cache.clear();
     }
 }
-=======
->>>>>>> refs/remotes/origin/main

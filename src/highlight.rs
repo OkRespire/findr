@@ -40,18 +40,14 @@ pub fn highlight_contents<'a>(file_path: &Path, content: &str) -> Text<'a> {
                 )
             })
             .collect();
-<<<<<<< HEAD
         spans.push(Span::styled(
             " ".repeat(prev_width as usize),
             Style::default(),
         ));
-=======
->>>>>>> refs/remotes/origin/main
 
         lines_to_render.push(Line::from(spans));
     }
 
-<<<<<<< HEAD
     while (lines_to_render.len() as u16) < prev_height {
         lines_to_render.push(Line::from(Span::styled(
             " ".repeat(prev_height as usize),
@@ -59,8 +55,6 @@ pub fn highlight_contents<'a>(file_path: &Path, content: &str) -> Text<'a> {
         )));
     }
 
-=======
->>>>>>> refs/remotes/origin/main
     Text::from(lines_to_render)
 }
 

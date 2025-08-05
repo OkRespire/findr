@@ -22,13 +22,8 @@ pub struct AppState<'a> {
     pub curr_preview_width: u16,
 }
 
-<<<<<<< HEAD
 impl AppState {
     pub fn new(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Self {
-=======
-impl<'a> AppState<'a> {
-    pub fn new(all_files: &Vec<PathBuf>, matcher: &mut nucleo::Matcher) -> Self {
->>>>>>> refs/remotes/origin/main
         let mut buf = Vec::new(); // Local buffer for UTF32 conversion
         let mut state = AppState {
             query: String::new(),
