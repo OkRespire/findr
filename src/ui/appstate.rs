@@ -20,7 +20,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(all_files: &Vec<PathBuf>, matcher: &mut nucleo::Matcher) -> Self {
+    pub fn new(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Self {
         let mut buf = Vec::new(); // Local buffer for UTF32 conversion
         let mut state = AppState {
             query: String::new(),

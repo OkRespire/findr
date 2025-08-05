@@ -45,18 +45,17 @@ pub fn highlight_contents(
                 )
             })
             .collect();
-        let curr_line_width = spans.iter().map(|s| s.width()).sum::<usize>() as u16;
-        if curr_line_width < prev_width {
-            let pad_len = prev_width - curr_line_width;
-            spans.push(Span::styled(" ".repeat(pad_len as usize), Style::default()));
-        }
+        spans.push(Span::styled(
+            " ".repeat(prev_width as usize),
+            Style::default(),
+        ));
 
         lines_to_render.push(Line::from(spans));
     }
 
     while (lines_to_render.len() as u16) < prev_height {
         lines_to_render.push(Line::from(Span::styled(
-            " ".repeat(prev_width as usize),
+            " ".repeat(prev_height as usize),
             Style::default(),
         )));
     }

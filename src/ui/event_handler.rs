@@ -13,7 +13,7 @@ pub enum AppAction {
 
 pub fn handle_events(
     event: Event,
-    all_files: &Vec<std::path::PathBuf>,
+    all_files: &[std::path::PathBuf],
     matcher: &mut Matcher,
     buf: &mut Vec<char>,
     state: &mut AppState,
@@ -41,14 +41,14 @@ pub fn handle_events(
                     if state.selected_idx > 0 {
                         state.selected_idx -= 1;
                     } else {
-                        state.selected_idx = state.filtered_files.len() - 1
+                        state.selected_idx = state.filtered_files.len() - 1;
                     }
                 }
                 KeyCode::Down => {
                     if state.selected_idx + 1 < state.filtered_files.len() {
                         state.selected_idx += 1;
                     } else {
-                        state.selected_idx = 0
+                        state.selected_idx = 0;
                     }
                 }
                 KeyCode::Tab => state.focus = Focus::SearchBar,
@@ -66,13 +66,13 @@ pub fn handle_events(
     let query_lower = &state.query.to_lowercase();
     let query_utf32 = Utf32Str::new(query_lower, buf);
 
-    state.update_filtered_files(query_utf32, &all_files, matcher);
+    state.update_filtered_files(query_utf32, all_files, matcher);
 
     // Update filtered files if query changed
     if state.query != prev_query {
         let query_lower = &state.query.to_lowercase();
         let query_utf32 = Utf32Str::new(query_lower, buf);
-        state.update_filtered_files(query_utf32, &all_files, matcher);
+        state.update_filtered_files(query_utf32, all_files, matcher);
 
         // Reset selection if query changed
         state.selected_idx = 0;
