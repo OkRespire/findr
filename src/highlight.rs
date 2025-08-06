@@ -16,7 +16,12 @@ lazy_static::lazy_static! {
     pub static ref TS: ThemeSet = ThemeSet::load_defaults();
 }
 
-pub fn highlight_contents<'a>(file_path: &Path, content: &str) -> Text<'a> {
+pub fn highlight_contents<'a>(
+    file_path: &Path,
+    content: &str,
+    prev_height: u16,
+    prev_width: u16,
+) -> Text<'a> {
     let syntax = SS
         .find_syntax_for_file(file_path)
         .ok()

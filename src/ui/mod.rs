@@ -10,6 +10,8 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
+    text::{Line, Span, Text},
     widgets::{Block, Borders},
 };
 use std::{error::Error, io, path::PathBuf};
@@ -92,60 +94,4 @@ pub fn run_app(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Result<(
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
-}
-
-fn update_preview(app_state: &mut AppState) {
-    if let Some((path, _, _)) = app_state.filtered_files.get(app_state.selected_idx) {
-        if app_state.selected_path.as_ref() != Some(path)
-            || !app_state.preview_cache.contains_key(path)
-        {
-            app_state.selected_path = Some(path.clone());
-        }
-        app_state.selected_path = Some(path.clone());
-
-        let mut lines_for_no_preview: Vec<Line<'static>> = Vec::new();
-        let no_preview_text = "No Preview available";
-        let prev_width = app_state.curr_preview_width;
-        let prev_height = app_state.curr_preview_height;
-
-        let mut first_line_spans = Vec::new();
-        first_line_spans.push(Span::styled(
-            no_preview_text.to_string(),
-            Style::default().fg(Color::DarkGray),
-        ));
-
-        let current_len = no_preview_text.len();
-        if current_len < prev_width as usize {
-            first_line_spans.push(Span::styled(
-                " ".repeat(prev_width as usize - current_len),
-                Style::default(),
-            ));
-        }
-        lines_for_no_preview.push(Line::from(first_line_spans));
-
-        while (lines_for_no_preview.len() as u16) < prev_height {
-            lines_for_no_preview.push(Line::from(Span::styled(
-                " ".repeat(prev_width as usize),
-                Style::default(),
-            )));
-        }
-        if !app_state.preview_cache.contains_key(path) {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let highlighted = highlight_contents(
-                    path,
-                    &content,
-                    app_state.curr_preview_height,
-                    app_state.curr_preview_width,
-                );
-                app_state.preview_cache.insert(path.clone(), highlighted);
-            } else {
-                app_state
-                    .preview_cache
-                    .insert(path.clone(), Text::from(lines_for_no_preview));
-            }
-        }
-    } else {
-        app_state.selected_path = None;
-        app_state.preview_cache.clear();
-    }
 }

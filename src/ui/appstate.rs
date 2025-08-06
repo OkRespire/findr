@@ -1,5 +1,5 @@
 use nucleo::{Matcher, Utf32Str};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ pub struct AppState<'a> {
     pub curr_preview_width: u16,
 }
 
-impl AppState {
+impl<'a> AppState<'a> {
     pub fn new(all_files: &[PathBuf], matcher: &mut nucleo::Matcher) -> Self {
         let mut buf = Vec::new(); // Local buffer for UTF32 conversion
         let mut state = AppState {
@@ -82,32 +82,48 @@ impl AppState {
             if self.selected_path.as_ref() != Some(path) || !self.preview_cache.contains_key(path) {
                 self.selected_path = Some(path.clone());
             }
+            self.selected_path = Some(path.clone());
 
-            let cache_key = format!(
-                "{}:{}x{}",
-                path.to_string_lossy(),
-                self.curr_preview_width,
-                self.curr_preview_height
-            );
-            // if !self.preview_cache.contains_key(path) {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let highlighted = highlight_contents(path, &content);
-                self.preview_cache.insert(path.clone(), highlighted);
-            } else {
-                let mut lines = Vec::new();
-                lines.push(Line::from(Span::styled(
-                    "No Preview available",
-                    Style::default().fg(ratatui::prelude::Color::DarkGray),
-                )));
-                while (lines.len() as u16) < self.curr_preview_height {
-                    lines.push(Line::from(Span::styled(
-                        " ".repeat(self.curr_preview_width as usize), // Pad to full width
-                        Style::default(),                             // Transparent background
-                    )));
-                }
-                self.preview_cache.insert(path.clone(), Text::from(lines));
+            let mut lines_for_no_preview: Vec<Line<'static>> = Vec::new();
+            let no_preview_text = "No Preview available";
+            let prev_width = self.curr_preview_width;
+            let prev_height = self.curr_preview_height;
+
+            let mut first_line_spans = Vec::new();
+            first_line_spans.push(Span::styled(
+                no_preview_text.to_string(),
+                Style::default().fg(Color::DarkGray),
+            ));
+
+            let current_len = no_preview_text.len();
+            if current_len < prev_width as usize {
+                first_line_spans.push(Span::styled(
+                    " ".repeat(prev_width as usize - current_len),
+                    Style::default(),
+                ));
             }
-            // }
+            lines_for_no_preview.push(Line::from(first_line_spans));
+
+            while (lines_for_no_preview.len() as u16) < prev_height {
+                lines_for_no_preview.push(Line::from(Span::styled(
+                    " ".repeat(prev_width as usize),
+                    Style::default(),
+                )));
+            }
+            if !self.preview_cache.contains_key(path) {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    let highlighted = highlight_contents(
+                        path,
+                        &content,
+                        self.curr_preview_height,
+                        self.curr_preview_width,
+                    );
+                    self.preview_cache.insert(path.clone(), highlighted);
+                } else {
+                    self.preview_cache
+                        .insert(path.clone(), Text::from(lines_for_no_preview));
+                }
+            }
         } else {
             self.selected_path = None;
             self.preview_cache.clear();
